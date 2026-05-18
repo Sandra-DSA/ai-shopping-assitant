@@ -1,0 +1,67 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: woocommerce_db
+    restart: always
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wpuser
+      MYSQL_PASSWORD: wppassword
+      MYSQL_RANDOM_ROOT_PASSWORD: '1'
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - woo_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "wpuser", "-pwppassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  wordpress:
+    image: wordpress:latest
+    container_name: woocommerce_app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wpuser
+      WORDPRESS_DB_PASSWORD: wppassword
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_TABLE_PREFIX: wp_
+      WORDPRESS_DEBUG: 0
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+    networks:
+      - woo_network
+
+  wpcli:
+    image: wordpress:cli
+    container_name: woocommerce_cli
+    depends_on:
+      - wordpress
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wpuser
+      WORDPRESS_DB_PASSWORD: wppassword
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - wordpress_data:/var/www/html
+    networks:
+      - woo_network
+    working_dir: /var/www/html
+    user: "0:0"
+    entrypoint: ["wp"]
+
+volumes:
+  db_data:
+  wordpress_data:
+
+networks:
+  woo_network:
+    driver: bridge
