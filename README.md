@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # WooCommerce Docker Setup
 
 ## Stack
@@ -61,3 +62,7 @@ docker compose logs -f wordpress
 - Put a reverse proxy (NGINX/Traefik) in front for HTTPS
 - Mount a real SMTP plugin or configure `WORDPRESS_CONFIG_EXTRA` for email
 - Use `--read-only` container flags + named upload volume for hardened deployments
+=======
+# ai-shopping-assitant
+An intelligent agentic shopping assistant that autonomously understands user intent, searches products, compares options, and makes context-aware recommendations, leveraging LLMs, tools, and real-time data to deliver a seamless, conversational buying experience
+>>>>>>> 97b78a22663593a7b35d5ddf215217664b08ed91
