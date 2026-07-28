@@ -8,9 +8,9 @@ Built under the DSA Open Source Initiative.
 
 ## What It Does
 
-- Accepts a free-text query from the user ("good serum for oily skin under Rs 600")
-- Searches a multi-category product dataset across 3 stores
-- Scores and ranks the top 3 products based on price, rating, and popularity
+- Accepts a free-text query from the user ("best 5G phone under Rs 25,000")
+- Searches a smartphone product dataset across 3 stores
+- Scores and ranks the top 3 phones based on price, rating, and popularity
 - Sends the top 3 to an LLM and returns a plain English recommendation
 - Exposes everything via a single REST API endpoint
 
@@ -22,15 +22,15 @@ Built under the DSA Open Source Initiative.
 ai-shopping-assistant/
 │
 ├── agents/
-│   ├── search.py          # Filter products by query, budget, category
-│   ├── compare.py         # Score and rank top 3 products
+│   ├── search.py          # Filter phones by query, budget, and brand
+│   ├── compare.py         # Score and rank top 3 phones
 │   └── recommend.py       # Call LLM, return natural language reply
 │
 ├── backend/
 │   └── main.py            # FastAPI server — /chat and /health
 │
 ├── data/
-│   ├── products.csv       # Product dataset (multi-category, 3 stores)
+│   ├── products.csv       # Smartphone dataset (3 stores)
 │   └── clean_products.py  # Cleaning pipeline for scraped data
 │
 ├── tests/
@@ -125,7 +125,7 @@ curl http://localhost:8000/health
 ```bash
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "good serum for oily skin under 600"}'
+  -d '{"message": "best 5G phone under 25000"}'
 ```
 
 With optional budget and category:
@@ -133,25 +133,25 @@ With optional budget and category:
 ```bash
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "serum", "max_budget": 600, "category": "Skincare"}'
+  -d '{"message": "Samsung phone", "max_budget": 25000, "category": "Smartphones"}'
 ```
 
 ### Sample response
 
 ```json
 {
-  "user_message": "good serum for oily skin under 600",
-  "recommendation": "For oily skin on a budget, the Minimalist 10% Niacinamide Serum is your best pick at Rs 549 from Store C...",
+  "user_message": "best 5G phone under 25000",
+  "recommendation": "The Samsung Galaxy M36 5G offers the best overall value under your budget with its AMOLED display, reliable performance, excellent battery life, and strong camera system.",
   "top_products": [
     {
-      "product_name": "Minimalist 10% Niacinamide Serum",
-      "brand": "Minimalist",
-      "store": "Store C",
-      "price": 549,
-      "mrp": 699,
-      "rating": 4.5,
-      "review_count": 4320,
-      "score": 84.5
+      "product_name": "Samsung Galaxy M36 5G",
+      "brand": "Samsung",
+      "store": "Store B",
+      "price": 23999,
+      "mrp": 26999,
+      "rating": 4.6,
+      "review_count": 3850,
+      "score": 91.3
     }
   ]
 }
@@ -175,7 +175,7 @@ The short version:
 - Create a branch: `git checkout -b your-name/feature-name`
 - Make your changes
 - Run `pytest tests/ -v` — all tests must pass
-- Raise a PR and tag Varsha or Nandana for review
+- Raise a PR and tag Varsha or Nandana or Minu for review
 
 ---
 
