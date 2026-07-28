@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+requests
+python-dotenv
+pandas
+
+# LLM SDKs — install only the one you need
+# google-generativeai       # for Gemini
+# openai                    # for OpenAI
+# anthropic                 # for Anthropic Claude
+
+# Testing
+pytest
+httpx
