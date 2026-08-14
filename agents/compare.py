@@ -1,123 +1,275 @@
+#
+# # SPDX-License-Identifier: Apache-2.0
+# # Copyright (c) 2026 Data Science Academy Pvt. Ltd. (https://www.datascience.one)
+# ##
+
 """
 agents/compare.py
 -----------------
 Compare Agent — scores and ranks filtered products, returning the top 3.
 
-This agent is responsible for:
-- Taking filtered product results from the Search Agent
-- Scoring each product based on price, rating, and popularity
-- Grouping by store so the user sees the best option from each store
-- Returning the top 3 ranked products
+Scoring has two layers:
+  1. Base score  — price, rating, popularity (works for all categories)
+  2. Spec score  — category-specific numeric specs (smartphones: RAM, battery etc.)
+
+The final score is a weighted combination of both layers.
+Spec confidence (high/medium/low) adjusts how much the spec score counts.
 
 Students:
-- The base scoring logic is implemented below.
-- TODO items show you where to improve and extend the scoring.
-- Do not change the function signatures — the Recommend Agent depends on them.
+- Base scoring is fully implemented.
+- Spec scoring for smartphones is implemented.
+- TODO items show where to extend for new categories and dynamic weighting.
+- Do not change function signatures — Recommend Agent depends on them.
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-def score_product(product: dict, max_budget: float = None) -> float:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Spec scoring profiles (mirrors data/spec_profiles.py scoring_specs)
+# ─────────────────────────────────────────────────────────────────────────────
+
+SMARTPHONE_SCORING = {
+    # spec_column     : (higher_is_better, max_value, weight_in_spec_score)
+    "spec_ram":          (True,  16,   0.25),
+    "spec_storage":      (True,  512,  0.20),
+    "spec_battery":      (True,  7000, 0.30),
+    "spec_rear_camera":  (True,  200,  0.15),
+    "spec_display_size": (True,  7.0,  0.10),
+}
+
+# Confidence multiplier — how much spec score counts based on data reliability
+CONFIDENCE_WEIGHT = {
+    "high":   1.0,
+    "medium": 0.6,
+    "low":    0.3,
+    "":       0.3,
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Base scoring — works for all categories
+# ─────────────────────────────────────────────────────────────────────────────
+
+def score_base(product: dict, max_budget: float = None) -> float:
     """
-    Scores a single product on a 0–100 scale.
+    Scores a product on price, rating, and popularity.
+    Returns a score between 0 and 100.
 
-    Scoring weights (adjust these as you improve the logic):
-        - Price score  : 40%  (lower price relative to MRP = better)
-        - Rating score : 40%  (higher rating = better)
-        - Popularity   : 20%  (higher review count = better, capped)
-
-    Args:
-        product    : A single product dict from the search results
-        max_budget : User's stated budget (optional, used for price scoring)
-
-    Returns:
-        float: Score between 0 and 100
+    Weights:
+        Price (discount from MRP) : 40%
+        Rating                    : 40%
+        Popularity (review count) : 20%
     """
-    price = float(product.get("price", 0))
-    mrp = float(product.get("mrp", price))
-    rating = float(product.get("rating", 0))
+    price        = float(product.get("price", 0))
+    mrp          = float(product.get("mrp", price))
+    rating       = float(product.get("rating", 0))
     review_count = int(product.get("review_count", 0))
 
-    # Price score — discount from MRP (higher discount = better value)
+    # Price score — discount from MRP, capped at 50%
     discount_pct = ((mrp - price) / mrp) * 100 if mrp > 0 else 0
-    price_score = min(discount_pct, 50) * 2  # cap at 50% discount = full 100
+    price_score  = min(discount_pct, 50) * 2
 
-    # Rating score — scale 0–5 to 0–100
+    # Rating score — 0-5 scaled to 0-100
     rating_score = (rating / 5) * 100
 
-    # Popularity score — cap review count at 10,000 for normalisation
+    # Popularity — cap at 10,000 reviews
     popularity_score = min(review_count / 10000, 1) * 100
 
-    # Weighted total
-    total = (price_score * 0.40) + (rating_score * 0.40) + (popularity_score * 0.20)
+    return (price_score * 0.40) + (rating_score * 0.40) + (popularity_score * 0.20)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Spec scoring — category specific
+# ─────────────────────────────────────────────────────────────────────────────
+
+def score_smartphone_specs(product: dict) -> float:
+    """
+    Scores a smartphone based on its numeric spec values.
+    Returns a score between 0 and 100.
+
+    Each spec is normalised against a maximum expected value,
+    then combined using per-spec weights.
+
+    Spec columns expected (added by clean_products.py):
+        spec_ram, spec_storage, spec_battery,
+        spec_rear_camera, spec_display_size
+    """
+    total = 0.0
+
+    for col, (higher_is_better, max_val, weight) in SMARTPHONE_SCORING.items():
+        val = float(product.get(col, 0))
+        if max_val == 0:
+            continue
+        normalised = min(val / max_val, 1.0) * 100
+        if not higher_is_better:
+            normalised = 100 - normalised
+        total += normalised * weight
 
     return round(total, 2)
 
 
-def compare_and_rank(products: list[dict], max_budget: float = None, top_n: int = 3) -> list[dict]:
+def score_specs(product: dict) -> float:
     """
-    Scores all products and returns the top N, one per store where possible.
+    Routes to the correct spec scorer based on category.
+    Returns 0 if no spec scorer exists for this category.
+    """
+    category    = str(product.get("category", "")).lower()
+    subcategory = str(product.get("subcategory", "")).lower()
+
+    if category == "electronics" and subcategory == "smartphone":
+        return score_smartphone_specs(product)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # TODO: Add new category scorers here
+    #   elif subcategory == "laptop":
+    #       return score_laptop_specs(product)
+    #   elif subcategory in ["earphones", "headphones"]:
+    #       return score_earphone_specs(product)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    return 0.0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Combined scorer
+# ─────────────────────────────────────────────────────────────────────────────
+
+def score_product(product: dict, max_budget: float = None) -> float:
+    """
+    Final score combining base score and spec score.
+
+    Formula:
+        final = (base_score * 0.60) + (spec_score * confidence_weight * 0.40)
+
+    Spec confidence adjusts how much the spec score contributes:
+        high   → full 40% weight on specs
+        medium → 60% of that (24%)
+        low    → 30% of that (12%)
+
+    This prevents unreliable scraped spec data from dominating the score.
 
     Args:
-        products   : List of product dicts from the Search Agent
-        max_budget : User's stated budget (passed to scorer)
-        top_n      : Number of top products to return (default: 3)
+        product    : Product dict from Search Agent
+        max_budget : User's stated budget (currently unused, reserved for TODO)
 
     Returns:
-        List of top N product dicts, each with an added "score" field.
+        float: Score between 0 and 100
+    """
+    base = score_base(product, max_budget)
+    spec = score_specs(product)
 
-    Example:
-        >>> top = compare_and_rank(search_results, max_budget=500)
+    confidence     = str(product.get("spec_confidence", "")).lower()
+    conf_weight    = CONFIDENCE_WEIGHT.get(confidence, 0.3)
+
+    final = (base * 0.60) + (spec * conf_weight * 0.40)
+    return round(final, 2)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ranking
+# ─────────────────────────────────────────────────────────────────────────────
+
+def compare_and_rank(
+    products: list[dict],
+    max_budget: float = None,
+    top_n: int = 3
+) -> list[dict]:
+    """
+    Scores all products and returns the top N, one per store where possible,
+    always sorted by score descending.
+
+    Selection strategy:
+        1. Score every product.
+        2. Pick the highest-scoring product from each distinct store
+           (so results are diverse across stores when possible).
+        3. If fewer than top_n stores are available, fill remaining
+           slots with the next-highest-scoring products NOT already
+           selected — this never re-adds a store that's already
+           represented unless every other store has been exhausted.
+        4. Always re-sort the final selection by score descending,
+           since step 2's "one per store" pass can otherwise leave
+           a lower-scoring product ahead of a higher-scoring one.
+
+    Args:
+        products   : Filtered product list from Search Agent
+        max_budget : User's budget (passed to scorer)
+        top_n      : How many products to return (default 3)
+
+    Returns:
+        List of top N products, each with a "score" field added,
+        sorted by score descending.
     """
     if not products:
         return []
 
-    # Score each product
-    for product in products:
-        product["score"] = score_product(product, max_budget)
+    # Score every product
+    for p in products:
+        p["score"] = score_product(p, max_budget)
 
     # Sort by score descending
     sorted_products = sorted(products, key=lambda x: x["score"], reverse=True)
 
-    # ── Pick best one per store ───────────────────────────────────────────────
-    seen_stores = set()
+    # ── Pass 1: best product per distinct store ─────────────────────────────
+    seen_stores  = set()
     top_products = []
+    selected_ids = set()
 
-    for product in sorted_products:
-        store = product.get("store")
+    for p in sorted_products:
+        store = p.get("store")
         if store not in seen_stores:
-            top_products.append(product)
+            top_products.append(p)
             seen_stores.add(store)
+            selected_ids.add(p.get("product_id"))
         if len(top_products) == top_n:
             break
 
-    # If fewer than top_n stores available, fill remaining slots from sorted list
+    # ── Pass 2: fill remaining slots, never re-picking an already
+    #            selected product, preferring untouched stores first ───────
     if len(top_products) < top_n:
-        for product in sorted_products:
-            if product not in top_products:
-                top_products.append(product)
+        # First try products from stores not yet represented at all
+        for p in sorted_products:
+            if p.get("product_id") in selected_ids:
+                continue
+            if p.get("store") not in seen_stores:
+                top_products.append(p)
+                selected_ids.add(p.get("product_id"))
+                seen_stores.add(p.get("store"))
             if len(top_products) == top_n:
                 break
 
+        # If still short, allow repeating a store, but never repeat
+        # the exact same product
+        if len(top_products) < top_n:
+            for p in sorted_products:
+                if p.get("product_id") in selected_ids:
+                    continue
+                top_products.append(p)
+                selected_ids.add(p.get("product_id"))
+                if len(top_products) == top_n:
+                    break
+
+    # ── Always re-sort the final selection by score descending ─────────────
+    top_products = sorted(top_products, key=lambda x: x["score"], reverse=True)
+
     # ─────────────────────────────────────────────────────────────────────────
-    # TODO 1: Make scoring weights configurable
-    #   - Right now weights are hardcoded (0.40, 0.40, 0.20).
-    #   - Allow the user's intent to shift weights dynamically.
-    #   - Example: if query contains "budget" or "cheap" → increase price_score weight
-    #              if query contains "best" or "top rated" → increase rating_score weight
+    # TODO 1: Dynamic weights based on user intent
+    #   - If query contains "budget", "cheap", "affordable"
+    #     → increase price weight in score_base (e.g. 0.60 instead of 0.40)
+    #   - If query contains "best", "top rated", "highest rated"
+    #     → increase rating weight
+    #   - If query contains "camera", "photo", "photography"
+    #     → increase spec_rear_camera weight in SMARTPHONE_SCORING
+    #   - Pass the original query string into this function to enable this
     # ─────────────────────────────────────────────────────────────────────────
 
     # ─────────────────────────────────────────────────────────────────────────
-    # TODO 2: Add spec-based scoring for specific categories
-    #   - For Electronics: factor in battery life, RAM, storage
-    #   - For Skincare: factor in volume (ml/g per rupee = value for money)
-    #   - For Fashion: factor in material quality keywords
-    #   - Hint: parse the key_specs field and extract numeric values
-    # ─────────────────────────────────────────────────────────────────────────
-
-    # ─────────────────────────────────────────────────────────────────────────
-    # TODO 3: Add a "value for money" metric
-    #   - Calculate price per unit (e.g. price per ml for skincare,
-    #     price per GB for electronics) and use it as an additional signal
+    # TODO 2: Value for money metric
+    #   - Price per GB of storage: lower = better value
+    #   - Price per mAh of battery: lower = better value
+    #   - Add as a bonus to the final score for budget-tier products
     # ─────────────────────────────────────────────────────────────────────────
 
     return top_products

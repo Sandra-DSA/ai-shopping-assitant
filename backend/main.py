@@ -1,3 +1,7 @@
+#
+# # SPDX-License-Identifier: Apache-2.0
+# # Copyright (c) 2026 Data Science Academy Pvt. Ltd. (https://www.datascience.one)
+# ##
 """
 backend/main.py
 ---------------
@@ -16,12 +20,29 @@ Students:
 - TODO items show you what to extend once the base is working.
 """
 
+import logging
+import time
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from agents.search import search_products
 from agents.compare import compare_and_rank
 from agents.recommend import get_recommendation
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Logging setup
+# Logs are printed to the terminal where uvicorn is running.
+# In Phase 4 this will be replaced by LangSmith tracing.
+# ─────────────────────────────────────────────────────────────────────────────
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+
 
 app = FastAPI(
     title="AI Shopping Assistant",
@@ -67,6 +88,7 @@ class ChatResponse(BaseModel):
 @app.get("/health")
 def health_check():
     """Simple health check endpoint."""
+    logger.info("Health check called")
     return {"status": "ok"}
 
 
@@ -87,24 +109,49 @@ def chat(request: ChatRequest):
         ChatResponse with LLM recommendation and top product details
     """
 
-    # Step 1 — Search
+    pipeline_start = time.time()
+
+    logger.info(f"QUERY    | message='{request.message}' | budget={request.max_budget} | category={request.category}")
+
+    # ── Step 1 — Search ───────────────────────────────────────────────────────
+    t0 = time.time()
     search_results = search_products(
         query=request.message,
         max_budget=request.max_budget,
         category=request.category,
     )
+    search_time = time.time() - t0
+
+    logger.info(f"SEARCH   | found={len(search_results)} products | time={search_time:.3f}s")
 
     if not search_results:
+        logger.warning(f"SEARCH   | no results for query='{request.message}'")
         raise HTTPException(
             status_code=404,
             detail="No products found matching your query. Try different keywords or a higher budget."
         )
 
-    # Step 2 — Compare
+    # ── Step 2 — Compare ──────────────────────────────────────────────────────
+    t0 = time.time()
     top_products = compare_and_rank(search_results, max_budget=request.max_budget)
+    compare_time = time.time() - t0
 
-    # Step 3 — Recommend
+    logger.info(f"COMPARE  | top={len(top_products)} products | time={compare_time:.3f}s")
+    for i, p in enumerate(top_products, 1):
+        logger.info(
+            f"           #{i} {p['product_name']} | store={p['store']} "
+            f"| price={p['price']} | score={p.get('score', 'N/A')}"
+        )
+
+    # ── Step 3 — Recommend ────────────────────────────────────────────────────
+    t0 = time.time()
     recommendation = get_recommendation(request.message, top_products)
+    llm_time = time.time() - t0
+
+    total_time = time.time() - pipeline_start
+
+    logger.info(f"LLM      | time={llm_time:.3f}s")
+    logger.info(f"COMPLETE | total_time={total_time:.3f}s")
 
     return ChatResponse(
         user_message=request.message,
@@ -138,4 +185,13 @@ def chat(request: ChatRequest):
 #   - In Phase 2, replace the CSV with live WooCommerce API calls.
 #   - Endpoint: GET {WP_BASE_URL}/wp-json/wc/v3/products
 #   - See add_users.py for the auth pattern (consumer key + secret).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TODO 4: Replace logging with LangSmith tracing (Phase 4)
+#   - pip install langsmith
+#   - Set LANGCHAIN_API_KEY and LANGCHAIN_TRACING_V2=true in .env
+#   - Wrap the pipeline with @traceable decorator from langsmith
+#   - Every Search, Compare, Recommend step becomes a traced span
+#   - View full traces at https://smith.langchain.com
 # ─────────────────────────────────────────────────────────────────────────────

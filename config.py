@@ -1,3 +1,7 @@
+#
+# # SPDX-License-Identifier: Apache-2.0
+# # Copyright (c) 2026 Data Science Academy Pvt. Ltd. (https://www.datascience.one)
+# ##
 """
 config.py
 ---------
@@ -21,6 +25,18 @@ WP_USERNAME = os.getenv("WP_USERNAME", "admin")
 WP_APP_PASSWORD = os.getenv("WP_APP_PASSWORD")
 WC_CONSUMER_KEY = os.getenv("WC_CONSUMER_KEY")
 WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
+
+# Store A is the same store as above (kept for naming consistency with load_products.py)
+STORE_A_URL = os.getenv("STORE_A_URL", WP_BASE_URL)
+
+# Store B and C — populated once Minu adds them to docker-compose.yml (Phase 2)
+STORE_B_URL = os.getenv("STORE_B_URL", "http://localhost:8081")
+STORE_B_CONSUMER_KEY = os.getenv("STORE_B_CONSUMER_KEY")
+STORE_B_CONSUMER_SECRET = os.getenv("STORE_B_CONSUMER_SECRET")
+
+STORE_C_URL = os.getenv("STORE_C_URL", "http://localhost:8082")
+STORE_C_CONSUMER_KEY = os.getenv("STORE_C_CONSUMER_KEY")
+STORE_C_CONSUMER_SECRET = os.getenv("STORE_C_CONSUMER_SECRET")
 
 # ─────────────────────────────────────────────
 # LLM

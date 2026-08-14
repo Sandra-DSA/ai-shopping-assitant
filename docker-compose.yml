@@ -1,4 +1,11 @@
+##
+## # SPDX-License-Identifier: Apache-2.0
+## # Copyright (c) 2026 Data Science Academy Pvt. Ltd. (https://www.datascience.one)
+## ###
 services:
+  # ─────────────────────────────────────────────────────────────────────────
+  # STORE A — Amazon products — port 8080
+  # ─────────────────────────────────────────────────────────────────────────
   db:
     image: mysql:8.0
     container_name: woocommerce_db
@@ -58,9 +65,137 @@ services:
     user: "0:0"
     entrypoint: ["wp"]
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # STORE B — Flipkart products — port 8081
+  # ─────────────────────────────────────────────────────────────────────────
+  db_b:
+    image: mysql:8.0
+    container_name: woocommerce_db_b
+    restart: always
+    environment:
+      MYSQL_DATABASE: wordpress_b
+      MYSQL_USER: wpuser
+      MYSQL_PASSWORD: wppassword
+      MYSQL_RANDOM_ROOT_PASSWORD: '1'
+    volumes:
+      - db_data_b:/var/lib/mysql
+    networks:
+      - woo_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "wpuser", "-pwppassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  wordpress_b:
+    image: wordpress:latest
+    container_name: woocommerce_app_b
+    restart: always
+    depends_on:
+      db_b:
+        condition: service_healthy
+    ports:
+      - "8081:80"
+    environment:
+      WORDPRESS_DB_HOST: db_b:3306
+      WORDPRESS_DB_USER: wpuser
+      WORDPRESS_DB_PASSWORD: wppassword
+      WORDPRESS_DB_NAME: wordpress_b
+      WORDPRESS_TABLE_PREFIX: wp_
+      WORDPRESS_DEBUG: 0
+    volumes:
+      - wordpress_data_b:/var/www/html
+      - ./uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+    networks:
+      - woo_network
+
+  wpcli_b:
+    image: wordpress:cli
+    container_name: woocommerce_cli_b
+    depends_on:
+      - wordpress_b
+    environment:
+      WORDPRESS_DB_HOST: db_b:3306
+      WORDPRESS_DB_USER: wpuser
+      WORDPRESS_DB_PASSWORD: wppassword
+      WORDPRESS_DB_NAME: wordpress_b
+    volumes:
+      - wordpress_data_b:/var/www/html
+    networks:
+      - woo_network
+    working_dir: /var/www/html
+    user: "0:0"
+    entrypoint: ["wp"]
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # STORE C — Meesho (or 3rd site) products — port 8082
+  # ─────────────────────────────────────────────────────────────────────────
+  db_c:
+    image: mysql:8.0
+    container_name: woocommerce_db_c
+    restart: always
+    environment:
+      MYSQL_DATABASE: wordpress_c
+      MYSQL_USER: wpuser
+      MYSQL_PASSWORD: wppassword
+      MYSQL_RANDOM_ROOT_PASSWORD: '1'
+    volumes:
+      - db_data_c:/var/lib/mysql
+    networks:
+      - woo_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "wpuser", "-pwppassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  wordpress_c:
+    image: wordpress:latest
+    container_name: woocommerce_app_c
+    restart: always
+    depends_on:
+      db_c:
+        condition: service_healthy
+    ports:
+      - "8082:80"
+    environment:
+      WORDPRESS_DB_HOST: db_c:3306
+      WORDPRESS_DB_USER: wpuser
+      WORDPRESS_DB_PASSWORD: wppassword
+      WORDPRESS_DB_NAME: wordpress_c
+      WORDPRESS_TABLE_PREFIX: wp_
+      WORDPRESS_DEBUG: 0
+    volumes:
+      - wordpress_data_c:/var/www/html
+      - ./uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+    networks:
+      - woo_network
+
+  wpcli_c:
+    image: wordpress:cli
+    container_name: woocommerce_cli_c
+    depends_on:
+      - wordpress_c
+    environment:
+      WORDPRESS_DB_HOST: db_c:3306
+      WORDPRESS_DB_USER: wpuser
+      WORDPRESS_DB_PASSWORD: wppassword
+      WORDPRESS_DB_NAME: wordpress_c
+    volumes:
+      - wordpress_data_c:/var/www/html
+    networks:
+      - woo_network
+    working_dir: /var/www/html
+    user: "0:0"
+    entrypoint: ["wp"]
+
 volumes:
   db_data:
   wordpress_data:
+  db_data_b:
+  wordpress_data_b:
+  db_data_c:
+  wordpress_data_c:
 
 networks:
   woo_network:

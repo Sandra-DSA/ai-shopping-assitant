@@ -1,0 +1,20 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+
+  - repo: local
+    hooks:
+      - id: add-license-header
+        name: Add Apache License Header
+        entry: python scripts/add_license_header.py
+        language: system
+        pass_filenames: false
