@@ -106,3 +106,109 @@ def test_compare_sorted_by_score():
     result = compare_and_rank(products)
     scores = [r["score"] for r in result]
     assert scores == sorted(scores, reverse=True), "Results should be sorted by score descending"
+
+
+def test_budget_intent_increases_price_importance():
+    """Budget-related queries should give more importance to price."""
+    better_discount = make_product(
+        store="Store A",
+        price=640,
+        mrp=800,
+        rating=3.5,
+        review_count=1000,
+    )
+    higher_rated = make_product(
+        store="Store B",
+        price=720,
+        mrp=800,
+        rating=4.8,
+        review_count=1000,
+    )
+
+    default_result = compare_and_rank(
+        [better_discount.copy(), higher_rated.copy()],
+        top_n=2,
+    )
+
+    budget_result = compare_and_rank(
+        [better_discount.copy(), higher_rated.copy()],
+        query="I want a cheap affordable product",
+        top_n=2,
+    )
+
+    assert default_result[0]["store"] == "Store B"
+    assert budget_result[0]["store"] == "Store A"
+
+
+def test_rating_intent_increases_rating_importance():
+    """Rating-related queries should give more importance to product rating."""
+    better_discount = make_product(
+        store="Store A",
+        price=520,
+        mrp=800,
+        rating=3.6,
+        review_count=1000,
+    )
+
+    higher_rated = make_product(
+        store="Store B",
+        price=680,
+        mrp=800,
+        rating=4.9,
+        review_count=1000,
+    )
+
+    default_result = compare_and_rank(
+        [better_discount.copy(), higher_rated.copy()],
+        top_n=2,
+    )
+
+    rating_result = compare_and_rank(
+        [better_discount.copy(), higher_rated.copy()],
+        query="show me the top rated product",
+        top_n=2,
+    )
+
+    assert default_result[0]["store"] == "Store A"
+    assert rating_result[0]["store"] == "Store B"
+
+
+def test_camera_intent_increases_camera_importance():
+    """Camera-related queries should give more importance to rear camera specs."""
+    balanced_phone = {
+        **make_product(store="Store A", price=15000, mrp=20000, rating=4.2),
+        "category": "Electronics",
+        "subcategory": "Smartphone",
+        "spec_ram": 12.0,
+        "spec_storage": 256.0,
+        "spec_battery": 6000.0,
+        "spec_rear_camera": 50.0,
+        "spec_display_size": 6.8,
+        "spec_confidence": "high",
+    }
+
+    camera_phone = {
+        **make_product(store="Store B", price=15000, mrp=20000, rating=4.2),
+        "category": "Electronics",
+        "subcategory": "Smartphone",
+        "spec_ram": 8.0,
+        "spec_storage": 128.0,
+        "spec_battery": 4500.0,
+        "spec_rear_camera": 200.0,
+        "spec_display_size": 6.5,
+        "spec_confidence": "high",
+    }
+
+    default_result = compare_and_rank(
+        [balanced_phone.copy(), camera_phone.copy()],
+        top_n=2,
+    )
+
+    camera_result = compare_and_rank(
+        [balanced_phone.copy(), camera_phone.copy()],
+        query="I want a phone for photography",
+        top_n=2,
+    )
+
+    assert default_result[0]["store"] == "Store A"
+    assert camera_result[0]["store"] == "Store B"
