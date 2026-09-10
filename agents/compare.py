@@ -98,12 +98,43 @@ def score_base(
     rating_weight = 0.40
     popularity_weight = 0.20
 
-    if any(word in query_lower for word in ["budget", "cheap", "affordable"]):
+    budget_intent = any(
+        phrase in query_lower
+        for phrase in [
+            "budget",
+            "cheap",
+            "cheapest",
+            "affordable",
+            "inexpensive",
+            "low cost",
+        ]
+    )
+
+    rating_intent = any(
+        phrase in query_lower
+        for phrase in [
+            "best",
+            "top",
+            "top rated",
+            "highest rated",
+            "highly rated",
+            "good rating",
+            "well rated",
+        ]
+    )
+
+    if budget_intent and rating_intent:
+        # User wants an affordable product that is also well rated.
+        price_weight = 0.50
+        rating_weight = 0.40
+        popularity_weight = 0.10
+
+    elif budget_intent:
         price_weight = 0.60
         rating_weight = 0.25
         popularity_weight = 0.15
 
-    elif any(phrase in query_lower for phrase in ["best", "top rated", "highest rated"]):
+    elif rating_intent:
         price_weight = 0.25
         rating_weight = 0.60
         popularity_weight = 0.15

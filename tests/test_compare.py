@@ -212,3 +212,128 @@ def test_camera_intent_increases_camera_importance():
 
     assert default_result[0]["store"] == "Store A"
     assert camera_result[0]["store"] == "Store B"
+
+
+def test_top_query_increases_rating_importance():
+    better_discount = make_product(
+        store="Store A",
+        price=520,
+        mrp=800,
+        rating=3.6,
+        review_count=1000,
+    )
+    higher_rated = make_product(
+        store="Store B",
+        price=680,
+        mrp=800,
+        rating=4.9,
+        review_count=1000,
+    )
+
+    result = compare_and_rank(
+        [better_discount.copy(), higher_rated.copy()],
+        query="show me the top phones for gaming",
+        top_n=2,
+    )
+
+    assert result[0]["store"] == "Store B"
+
+
+def test_cheapest_query_increases_price_importance():
+    better_discount = make_product(
+        store="Store A",
+        price=640,
+        mrp=800,
+        rating=3.5,
+        review_count=1000,
+    )
+    higher_rated = make_product(
+        store="Store B",
+        price=720,
+        mrp=800,
+        rating=4.8,
+        review_count=1000,
+    )
+
+    result = compare_and_rank(
+        [better_discount.copy(), higher_rated.copy()],
+        query="show me the cheapest good phone",
+        top_n=2,
+    )
+
+    assert result[0]["store"] == "Store A"
+
+
+def test_affordable_good_rating_query_balances_price_and_rating():
+    better_discount = make_product(
+        store="Store A",
+        price=600,
+        mrp=800,
+        rating=3.2,
+        review_count=1000,
+    )
+    higher_rated = make_product(
+        store="Store B",
+        price=700,
+        mrp=800,
+        rating=4.9,
+        review_count=1000,
+    )
+
+    result = compare_and_rank(
+        [better_discount.copy(), higher_rated.copy()],
+        query="affordable phone with good rating",
+        top_n=2,
+    )
+
+    assert result[0]["store"] == "Store B"
+
+
+def test_best_phone_under_budget_increases_rating_importance():
+    better_discount = make_product(
+        store="Store A",
+        price=520,
+        mrp=800,
+        rating=3.6,
+        review_count=1000,
+    )
+    higher_rated = make_product(
+        store="Store B",
+        price=680,
+        mrp=800,
+        rating=4.9,
+        review_count=1000,
+    )
+
+    result = compare_and_rank(
+        [better_discount.copy(), higher_rated.copy()],
+        query="best phone under 20000",
+        top_n=2,
+    )
+
+    assert result[0]["store"] == "Store B"
+
+
+def test_top_rated_phone_under_budget_increases_rating_importance():
+    better_discount = make_product(
+        store="Store A",
+        price=520,
+        mrp=800,
+        rating=3.6,
+        review_count=1000,
+    )
+    higher_rated = make_product(
+        store="Store B",
+        price=680,
+        mrp=800,
+        rating=4.9,
+        review_count=1000,
+    )
+
+    result = compare_and_rank(
+        [better_discount.copy(), higher_rated.copy()],
+        query="top rated phone under 20000",
+        top_n=2,
+    )
+
+    assert result[0]["store"] == "Store B"
