@@ -12,3 +12,6 @@ pandas
 # Testing
 pytest
 httpx
+
+# Frontend UI (optional)
+streamlit
