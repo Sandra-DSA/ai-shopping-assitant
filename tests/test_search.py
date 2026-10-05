@@ -12,6 +12,7 @@ Run with:
 """
 
 import pytest
+from unittest.mock import patch, Mock
 from agents.search import search_products, load_products
 
 
@@ -28,6 +29,53 @@ def test_load_products_has_required_columns():
     for col in required:
         assert col in df.columns, f"Missing column: {col}"
 
+
+def test_woocommerce_product_mapping():
+    fake_product = {
+        "id": 101,
+        "name": "Samsung Galaxy Phone",
+        "price": "19999",
+        "regular_price": "21999",
+        "sale_price": "19999",
+        "stock_status": "instock",
+        "short_description": "128GB storage, 5000mAh battery",
+        "meta_data": [
+            {"key": "dsa_brand", "value": "Samsung"},
+            {"key": "dsa_category", "value": "Electronics"},
+            {"key": "dsa_subcategory", "value": "Phone"},
+            {"key": "dsa_store", "value": "Store A"},
+            {"key": "dsa_rating", "value": "4.5"},
+            {"key": "dsa_review_count", "value": "100"},
+            {"key": "dsa_pros", "value": "Good battery"},
+            {"key": "dsa_cons", "value": "Expensive"},
+        ],
+    }
+
+    with patch("agents.search.requests.get") as mock_get:
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [fake_product]
+        mock_get.return_value = mock_response
+
+        from agents.search import _fetch_store_products, _map_wc_product_to_dict
+
+        products = _fetch_store_products(
+            "http://localhost:8080",
+            "test-key",
+            "test-secret",
+        )
+
+        assert len(products) == 1
+
+        mapped = _map_wc_product_to_dict(products[0])
+
+        assert mapped["product_id"] == "101"
+        assert mapped["product_name"] == "Samsung Galaxy Phone"
+        assert mapped["brand"] == "Samsung"
+        assert mapped["store"] == "Store A"
+        assert mapped["price"] == 19999
+        assert mapped["rating"] == 4.5
+        assert mapped["stock_status"] == "in_stock"
 
 # ── Keyword search ────────────────────────────────────────────────────────────
 
