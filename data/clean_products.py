@@ -31,6 +31,9 @@ import pandas as pd
 import os
 import re
 import sys
+import json
+
+import config
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from data.spec_profiles import SPEC_PROFILES, get_profile
@@ -384,10 +387,19 @@ def process_smartphones(df: pd.DataFrame) -> pd.DataFrame:
         else:
             df[f"spec_{spec_col}"] = 0.0
 
-    # Add default columns
-    df["pros"]         = ""
-    df["cons"]         = ""
-    df["stock_status"] = "in_stock"
+    # Add default columns without overwriting existing values
+    if "pros" not in df.columns:
+        df["pros"] = ""
+    else:
+        df["pros"] = df["pros"].fillna("")
+
+    if "cons" not in df.columns:
+        df["cons"] = ""
+    else:
+        df["cons"] = df["cons"].fillna("")
+
+    if "stock_status" not in df.columns:
+        df["stock_status"] = "in_stock"
 
     # Drop rows missing name or price
     df = df.dropna(subset=["product_name", "price"])
@@ -419,6 +431,142 @@ def deduplicate(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     return df
+
+
+
+def generate_pros_cons(df: pd.DataFrame) -> pd.DataFrame:
+    """Generate pros and cons for products missing them, using Gemini."""
+    if "description" not in df.columns:
+        print("Description column not found; skipping pros/cons generation.")
+        return df
+
+    if "pros" not in df.columns:
+        df["pros"] = ""
+    else:
+        df["pros"] = df["pros"].fillna("")
+
+    if "cons" not in df.columns:
+        df["cons"] = ""
+    else:
+        df["cons"] = df["cons"].fillna("")
+
+    # Select only products that have a description and are missing pros or cons.
+    missing = (
+        df["description"].fillna("").astype(str).str.strip().ne("")
+        & (
+            df["pros"].astype(str).str.strip().eq("")
+            | df["cons"].astype(str).str.strip().eq("")
+        )
+    )
+    indices = df.index[missing].tolist()
+
+    if not indices:
+        print("No products need pros/cons generation.")
+        return df
+
+    if not config.GEMINI_API_KEY:
+        print("Gemini API key is missing; skipping pros/cons generation.")
+        return df
+
+    from google import genai
+
+    client = genai.Client(api_key=config.GEMINI_API_KEY)
+
+    # Process products in small batches to reduce API calls.
+    batch_size = 10
+
+    for start in range(0, len(indices), batch_size):
+        batch_indices = indices[start:start + batch_size]
+        products = []
+
+        for idx in batch_indices:
+            products.append({
+                "row_id": str(idx),
+                "product_name": str(df.at[idx, "product_name"]),
+                "description": str(df.at[idx, "description"])[:1500],
+            })
+
+        prompt = f"""
+You help shoppers understand products from their descriptions.
+For every product in the JSON input, return JSON with this structure:
+{{
+  "products": [
+    {{
+      "row_id": "same row_id as input",
+      "pros": ["2 or 3 concise advantages"],
+      "cons": ["1 or 2 realistic limitations"]
+    }}
+  ]
+}}
+
+Use only facts supported by the product name and description.
+Do not invent specifications or claim missing details are defects.
+Return JSON only, with no Markdown fences.
+
+Products:
+{json.dumps(products, ensure_ascii=False)}
+"""
+
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt,
+                config={
+                    "response_mime_type": "application/json",
+                },
+            )
+
+            result = json.loads(response.text or "{}")
+            generated = result.get("products", [])
+
+            if not isinstance(generated, list):
+                print("Gemini returned an unexpected response; skipping this batch.")
+                continue
+
+            by_row_id = {
+                str(item.get("row_id")): item
+                for item in generated
+                if isinstance(item, dict) and "row_id" in item
+            }
+
+            for idx in batch_indices:
+                item = by_row_id.get(str(idx))
+                if not item:
+                    continue
+
+                pros = item.get("pros", [])
+                cons = item.get("cons", [])
+
+                if not isinstance(pros, list) or not isinstance(cons, list):
+                    continue
+
+                # Preserve any values that were already present.
+                if not str(df.at[idx, "pros"]).strip():
+                    df.at[idx, "pros"] = "; ".join(
+                        str(value).strip() for value in pros[:3]
+                        if str(value).strip()
+                    )
+
+                if not str(df.at[idx, "cons"]).strip():
+                    df.at[idx, "cons"] = "; ".join(
+                        str(value).strip() for value in cons[:2]
+                        if str(value).strip()
+                    )
+
+            print(
+                f"Generated pros/cons for batch "
+                f"{start // batch_size + 1}."
+            )
+
+        except Exception as exc:
+            # One failed API batch should not stop the cleaning pipeline.
+            print(
+                f"Could not generate pros/cons for this batch: "
+                f"{type(exc).__name__}: {exc}"
+            )
+
+    return df
+
 
 
 def add_product_ids(df: pd.DataFrame) -> pd.DataFrame:
@@ -458,6 +606,9 @@ def main():
 
     # ── Deduplicate ───────────────────────────────────────────────────────────
     cleaned = deduplicate(cleaned)
+
+    # ── Generate pros and cons ────────────────────────────────────────────────
+    cleaned = generate_pros_cons(cleaned)
 
     # raw_product_name was only needed for deduplication
     if "raw_product_name" in cleaned.columns:
