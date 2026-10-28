@@ -658,11 +658,6 @@ def main():
     # ─────────────────────────────────────────────────────────────────────────
 
     # ─────────────────────────────────────────────────────────────────────────
-    # TODO 3: Auto-generate pros and cons using LLM
-    #   - The description column has rich product text
-    #   - Use Gemini/OpenAI to extract 2-3 pros and 1-2 cons per product
-    #   - Only do this for products where pros/cons are empty
-    # ─────────────────────────────────────────────────────────────────────────
 
 
 if __name__ == "__main__":
